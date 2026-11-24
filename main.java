@@ -1,0 +1,630 @@
+import java.util.ArrayList;
+import java.util.Scanner;
+
+// Parent class for everyone who uses QuickBite
+abstract class User {
+    private static int idCounter = 1;
+
+    private int userID;
+    private String name;
+    private String userType;
+
+    public User(String name, String userType) {
+        this.userID = idCounter++;
+        this.name = name;
+        this.userType = userType;
+    }
+
+    public int getUserID() {
+        return userID;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getUserType() {
+        return userType;
+    }
+
+    // Just checks that the user actually typed a name
+    public boolean login() {
+        return name != null && !name.trim().isEmpty();
+    }
+
+    public void viewMenu(ArrayList<Food> menu) {
+        System.out.println("----------------------------------------");
+        System.out.println("FOOD MENU");
+        System.out.println("----------------------------------------");
+
+        if (menu.isEmpty()) {
+            System.out.println("No food items available right now.");
+        }
+
+        for (int i = 0; i < menu.size(); i++) {
+            Food f = menu.get(i);
+            String line = (i + 1) + ". " + f.getName() + " P " + String.format("%.2f", f.getPrice());
+            if (!f.isAvailable()) {
+                line += " (Sold out)";
+            }
+            System.out.println(line);
+        }
+        System.out.println("----------------------------------------");
+    }
+
+    // Each type of user greets differently
+    public abstract void showWelcome();
+}
+
+class Student extends User {
+
+    public Student(String name) {
+        super(name, "Student");
+    }
+
+    @Override
+    public void showWelcome() {
+        System.out.println("Hi, " + getName() + "! Pick your food below so you don't have to line up.");
+    }
+}
+
+class Teacher extends User {
+
+    public Teacher(String name) {
+        super(name, "Teacher");
+    }
+
+    @Override
+    public void showWelcome() {
+        System.out.println("Good day, " + getName() + "! You can order your food here between classes.");
+    }
+}
+
+class CanteenStaff extends User {
+
+    public CanteenStaff(String name) {
+        super(name, "Canteen Staff");
+    }
+
+    @Override
+    public void showWelcome() {
+        System.out.println("Welcome, " + getName() + ". Here you can manage the menu and the orders.");
+    }
+
+    public void addFood(ArrayList<Food> menu, String name, double price, String description) {
+        if (price <= 0) {
+            throw new IllegalArgumentException("Price must be more than 0.");
+        }
+        menu.add(new Food(name, price, description));
+    }
+
+    public void removeFood(ArrayList<Food> menu, int index) {
+        menu.remove(index);
+    }
+
+    public void viewOrders(ArrayList<Order> orders) {
+        System.out.println("----------------------------------------");
+        System.out.println("ALL ORDERS");
+        System.out.println("----------------------------------------");
+        if (orders.isEmpty()) {
+            System.out.println("No orders yet.");
+        }
+        for (Order o : orders) {
+            System.out.println(o.getFormattedID() + " | " + o.getCustomerName() + " | " + o.getItemsAsText()
+                    + " | P " + String.format("%.2f", o.getTotalAmount()) + " | " + o.getStatus());
+        }
+        System.out.println("----------------------------------------");
+    }
+}
+
+// One item on the canteen menu
+class Food {
+    private static int idCounter = 1;
+
+    private int foodID;
+    private String name;
+    private double price;
+    private String description;
+    private boolean availability;
+
+    public Food(String name, double price, String description) {
+        this.foodID = idCounter++;
+        this.name = name;
+        this.price = price;
+        this.description = description;
+        this.availability = true;
+    }
+
+    public int getFoodID() {
+        return foodID;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public boolean isAvailable() {
+        return availability;
+    }
+
+    public void setAvailability(boolean availability) {
+        this.availability = availability;
+    }
+
+    public void updateFood(String name, double price, String description) {
+        if (price <= 0) {
+            throw new IllegalArgumentException("Price must be more than 0.");
+        }
+        this.name = name;
+        this.price = price;
+        this.description = description;
+    }
+}
+
+// One order made by a student or teacher
+class Order {
+    private static int idCounter = 1;
+
+    private int orderID;
+    private int userID;
+    private String customerName;
+    private ArrayList<Food> foodItems = new ArrayList<>();
+    private ArrayList<Integer> quantities = new ArrayList<>();
+    private double totalAmount;
+    private String status;
+
+    public Order(User customer) {
+        this.orderID = idCounter++;
+        this.userID = customer.getUserID();
+        this.customerName = customer.getName();
+        this.status = "Pending";
+    }
+
+    public int getOrderID() {
+        return orderID;
+    }
+
+    public int getUserID() {
+        return userID;
+    }
+
+    public String getCustomerName() {
+        return customerName;
+    }
+
+    public double getTotalAmount() {
+        return totalAmount;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public boolean isEmpty() {
+        return foodItems.isEmpty();
+    }
+
+    public String getFormattedID() {
+        return String.format("#%03d", orderID);
+    }
+
+    // Adds a food to the order. If it's already there, just add to the quantity.
+    public void addItem(Food food, int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be at least 1.");
+        }
+        if (!food.isAvailable()) {
+            throw new IllegalStateException(food.getName() + " is sold out.");
+        }
+
+        int index = foodItems.indexOf(food);
+        if (index >= 0) {
+            quantities.set(index, quantities.get(index) + quantity);
+        } else {
+            foodItems.add(food);
+            quantities.add(quantity);
+        }
+        calculateTotal();
+    }
+
+    public double calculateTotal() {
+        totalAmount = 0;
+        for (int i = 0; i < foodItems.size(); i++) {
+            totalAmount += foodItems.get(i).getPrice() * quantities.get(i);
+        }
+        return totalAmount;
+    }
+
+    public void placeOrder() {
+        if (isEmpty()) {
+            throw new IllegalStateException("You can't place an empty order.");
+        }
+        calculateTotal();
+        status = "Pending";
+    }
+
+    public void updateStatus(String newStatus) {
+        this.status = newStatus;
+    }
+
+    public void showSummary() {
+        System.out.println("----------------------------------------");
+        System.out.println("ORDER SUMMARY");
+        System.out.println("----------------------------------------");
+        for (int i = 0; i < foodItems.size(); i++) {
+            double subtotal = foodItems.get(i).getPrice() * quantities.get(i);
+            System.out.printf("%-20s x%-3d P %.2f%n", foodItems.get(i).getName(), quantities.get(i), subtotal);
+        }
+        System.out.println("----------------------------------------");
+        System.out.printf("Total Amount: P %.2f%n", totalAmount);
+    }
+
+    // Items in one line, like "Chicken Burger x2, Fries x1"
+    public String getItemsAsText() {
+        String text = "";
+        for (int i = 0; i < foodItems.size(); i++) {
+            text += foodItems.get(i).getName() + " x" + quantities.get(i);
+            if (i < foodItems.size() - 1) {
+                text += ", ";
+            }
+        }
+        return text;
+    }
+}
+
+// Keeps the payment details of an order
+class Transaction {
+    private static int idCounter = 1;
+
+    private int transactionID;
+    private Order order;
+    private double amount;
+    private String paymentStatus;
+
+    public Transaction(Order order) {
+        this.transactionID = idCounter++;
+        this.order = order;
+        this.amount = order.getTotalAmount();
+        this.paymentStatus = "Unpaid";
+    }
+
+    public int getTransactionID() {
+        return transactionID;
+    }
+
+    public Order getOrder() {
+        return order;
+    }
+
+    public String getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void processPayment() {
+        paymentStatus = "Paid";
+    }
+
+    public void viewTransaction() {
+        System.out.println("Order ID: " + order.getFormattedID());
+        System.out.println("Customer: " + order.getCustomerName());
+        System.out.println("Items: " + order.getItemsAsText());
+        System.out.printf("Total Amount: P %.2f%n", amount);
+        System.out.println("Payment Status: " + paymentStatus);
+        System.out.println("Order Status: " + order.getStatus());
+        System.out.println("----------------------------------------");
+    }
+}
+
+// Main class: runs the menus and connects everything together
+public class Main {
+    private static Scanner input = new Scanner(System.in);
+    private static ArrayList<Food> menu = new ArrayList<>();
+    private static ArrayList<Order> orders = new ArrayList<>();
+    private static ArrayList<Transaction> transactions = new ArrayList<>();
+    private static CanteenStaff staff = new CanteenStaff("Canteen Staff");
+
+    public static void main(String[] args) {
+        loadDefaultMenu();
+
+        System.out.println("========================================");
+        System.out.println("QUICKBITE");
+        System.out.println("A School Canteen Ordering and Management System");
+        System.out.println("========================================");
+
+        boolean running = true;
+        while (running) {
+            System.out.println("MAIN MENU");
+            System.out.println("----------------------------------------");
+            System.out.println("1. Student / Teacher");
+            System.out.println("2. Canteen Staff");
+            System.out.println("3. View Transaction Records");
+            System.out.println("4. Exit");
+            System.out.println("----------------------------------------");
+            int choice = readInt("Enter your choice: ");
+
+            switch (choice) {
+                case 1:
+                    customerMode();
+                    break;
+                case 2:
+                    staffMode();
+                    break;
+                case 3:
+                    showTransactions();
+                    break;
+                case 4:
+                    System.out.println("Thank you for using QuickBite!");
+                    running = false;
+                    break;
+                default:
+                    System.out.println("Please choose from 1 to 4 only.");
+            }
+        }
+    }
+
+    private static void loadDefaultMenu() {
+        menu.add(new Food("Chicken Burger", 50, "Grilled chicken patty with lettuce"));
+        menu.add(new Food("Pasta Carbonara", 60, "Creamy pasta with bacon bits"));
+        menu.add(new Food("Pork BBQ", 55, "Pork skewer with sweet BBQ sauce"));
+        menu.add(new Food("Hotdog", 45, "Hotdog sandwich with ketchup"));
+        menu.add(new Food("Fries", 35, "Crispy french fries"));
+        menu.add(new Food("Iced Tea", 20, "Cold iced tea"));
+    }
+
+    // ---------------- Student / Teacher side ----------------
+
+    private static void customerMode() {
+        System.out.println("1. Student");
+        System.out.println("2. Teacher");
+        int type = readInt("Are you a student or a teacher? ");
+        if (type != 1 && type != 2) {
+            System.out.println("Invalid choice. Going back to the main menu.");
+            return;
+        }
+
+        System.out.print("Enter your name: ");
+        String name = input.nextLine().trim();
+
+        User customer;
+        if (type == 1) {
+            customer = new Student(name);
+        } else {
+            customer = new Teacher(name);
+        }
+
+        if (!customer.login()) {
+            System.out.println("Name can't be empty.");
+            return;
+        }
+
+        customer.showWelcome();
+        customer.viewMenu(menu);
+
+        Order order = new Order(customer);
+
+        // keep asking until the user types 0
+        while (true) {
+            int foodChoice = readInt("Enter food choice (0 to finish): ");
+            if (foodChoice == 0) {
+                break;
+            }
+            if (foodChoice < 1 || foodChoice > menu.size()) {
+                System.out.println("That food is not on the menu.");
+                continue;
+            }
+
+            int quantity = readInt("Enter quantity: ");
+            try {
+                order.addItem(menu.get(foodChoice - 1), quantity);
+                System.out.println("Food added to order successfully.");
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                System.out.println("Oops: " + e.getMessage());
+            }
+        }
+
+        if (order.isEmpty()) {
+            System.out.println("No food selected. Going back to the main menu.");
+            return;
+        }
+
+        order.showSummary();
+        System.out.print("Confirm order? (Yes/No): ");
+        String answer = input.nextLine().trim();
+
+        if (answer.equalsIgnoreCase("yes") || answer.equalsIgnoreCase("y")) {
+            order.placeOrder();
+            orders.add(order);
+
+            Transaction t = new Transaction(order);
+            t.processPayment();
+            transactions.add(t);
+
+            System.out.println("Order placed successfully!");
+            System.out.println("Checking order status...");
+            // the items were in stock, so the order is confirmed right away
+            order.updateStatus("Confirmed");
+            System.out.println("Order Status: " + order.getStatus());
+            System.out.println("----------------------------------------");
+            t.viewTransaction();
+        } else {
+            System.out.println("Order cancelled.");
+        }
+        System.out.println("Returning to Main Menu...");
+        System.out.println("----------------------------------------");
+    }
+
+    // ---------------- Canteen staff side ----------------
+
+    private static void staffMode() {
+        staff.showWelcome();
+
+        boolean back = false;
+        while (!back) {
+            System.out.println("----------------------------------------");
+            System.out.println("STAFF MENU");
+            System.out.println("----------------------------------------");
+            System.out.println("1. View orders");
+            System.out.println("2. Update order status");
+            System.out.println("3. Add food");
+            System.out.println("4. Edit food");
+            System.out.println("5. Remove food");
+            System.out.println("6. Set food available / sold out");
+            System.out.println("7. Back to main menu");
+            int choice = readInt("Enter your choice: ");
+
+            try {
+                switch (choice) {
+                    case 1:
+                        staff.viewOrders(orders);
+                        break;
+                    case 2:
+                        updateOrderStatus();
+                        break;
+                    case 3:
+                        addFood();
+                        break;
+                    case 4:
+                        editFood();
+                        break;
+                    case 5:
+                        staff.viewMenu(menu);
+                        int removeNo = readInt("Enter food number to remove: ");
+                        staff.removeFood(menu, removeNo - 1);
+                        System.out.println("Food removed.");
+                        break;
+                    case 6:
+                        toggleAvailability();
+                        break;
+                    case 7:
+                        back = true;
+                        break;
+                    default:
+                        System.out.println("Please choose from 1 to 7 only.");
+                }
+            } catch (IndexOutOfBoundsException e) {
+                System.out.println("That number is not on the list.");
+            } catch (IllegalArgumentException e) {
+                System.out.println("Oops: " + e.getMessage());
+            }
+        }
+    }
+
+    private static void updateOrderStatus() {
+        staff.viewOrders(orders);
+        if (orders.isEmpty()) {
+            return;
+        }
+
+        int number = readInt("Enter order number: ");
+        Order found = null;
+        for (Order o : orders) {
+            if (o.getOrderID() == number) {
+                found = o;
+            }
+        }
+        if (found == null) {
+            System.out.println("Order not found.");
+            return;
+        }
+
+        System.out.println("1. Confirmed");
+        System.out.println("2. Preparing");
+        System.out.println("3. Ready for Pickup");
+        System.out.println("4. Completed");
+        int s = readInt("Choose new status: ");
+
+        String[] statuses = {"Confirmed", "Preparing", "Ready for Pickup", "Completed"};
+        if (s < 1 || s > statuses.length) {
+            System.out.println("Invalid status.");
+            return;
+        }
+        found.updateStatus(statuses[s - 1]);
+        System.out.println("Order " + found.getFormattedID() + " is now " + found.getStatus() + ".");
+    }
+
+    private static void addFood() {
+        System.out.print("Food name: ");
+        String name = input.nextLine().trim();
+        double price = readDouble("Price: ");
+        System.out.print("Description: ");
+        String description = input.nextLine().trim();
+
+        if (name.isEmpty()) {
+            System.out.println("Food name can't be empty.");
+            return;
+        }
+        staff.addFood(menu, name, price, description);
+        System.out.println(name + " was added to the menu.");
+    }
+
+    private static void editFood() {
+        staff.viewMenu(menu);
+        int number = readInt("Enter food number to edit: ");
+        Food f = menu.get(number - 1);
+
+        System.out.print("New name: ");
+        String name = input.nextLine().trim();
+        double price = readDouble("New price: ");
+        System.out.print("New description: ");
+        String description = input.nextLine().trim();
+
+        f.updateFood(name, price, description);
+        System.out.println("Food updated.");
+    }
+
+    private static void toggleAvailability() {
+        staff.viewMenu(menu);
+        int number = readInt("Enter food number: ");
+        Food f = menu.get(number - 1);
+        f.setAvailability(!f.isAvailable());
+        System.out.println(f.getName() + " is now " + (f.isAvailable() ? "available." : "sold out."));
+    }
+
+    // ---------------- Transactions ----------------
+
+    private static void showTransactions() {
+        System.out.println("----------------------------------------");
+        System.out.println("TRANSACTION RECORD");
+        System.out.println("----------------------------------------");
+        if (transactions.isEmpty()) {
+            System.out.println("No transactions yet.");
+            System.out.println("----------------------------------------");
+            return;
+        }
+        for (Transaction t : transactions) {
+            t.viewTransaction();
+        }
+    }
+
+    // ---------------- Input helpers (exception handling) ----------------
+
+    private static int readInt(String message) {
+        while (true) {
+            System.out.print(message);
+            try {
+                return Integer.parseInt(input.nextLine().trim());
+            } catch (NumberFormatException e) {
+                System.out.println("Please enter a valid number.");
+            }
+        }
+    }
+
+    private static double readDouble(String message) {
+        while (true) {
+            System.out.print(message);
+            try {
+                return Double.parseDouble(input.nextLine().trim());
+            } catch (NumberFormatException e) {
+                System.out.println("Please enter a valid amount.");
+            }
+        }
+    }
+}
